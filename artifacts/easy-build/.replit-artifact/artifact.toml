@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Easy Build"
+description = "A mobile-first Arabic web app for connecting GitHub repositories, validating Android projects, running GitHub Actions builds with live progress, and downloading APK artifacts."
+version = "1.0.0"
+id = "artifacts/easy-build"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18458
+
+[services.development]
+run = "pnpm --filter @workspace/easy-build run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/easy-build", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/easy-build/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18458"
+BASE_PATH = "/"
