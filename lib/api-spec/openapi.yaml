@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: github
+    description: GitHub authentication, repositories, and Android builds
 paths:
   /healthz:
     get:
@@ -24,6 +26,123 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /github/auth/status:
+    get:
+      operationId: getGithubAuthStatus
+      tags: [github]
+      summary: Get the current GitHub connection status
+      responses:
+        "200":
+          description: GitHub connection status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GithubAuthStatus"
+  /github/auth/logout:
+    post:
+      operationId: logoutGithub
+      tags: [github]
+      summary: Disconnect the current GitHub account
+      responses:
+        "200":
+          description: Disconnected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+  /github/repositories:
+    get:
+      operationId: listGithubRepositories
+      tags: [github]
+      summary: List repositories accessible to the connected user
+      responses:
+        "200":
+          description: Repositories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GithubRepository"
+  /github/builds:
+    post:
+      operationId: startGithubBuild
+      tags: [github]
+      summary: Validate a repository and dispatch an Android build
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GithubBuildInput"
+      responses:
+        "201":
+          description: Build dispatched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GithubBuild"
+        "400":
+          description: Repository structure is incomplete
+        "401":
+          description: GitHub connection required
+  /github/builds/{buildId}:
+    get:
+      operationId: getGithubBuild
+      tags: [github]
+      summary: Get build progress and event history
+      parameters:
+        - name: buildId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Build status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GithubBuild"
+        "404":
+          description: Build not found
+  /github/builds/{buildId}/cancel:
+    post:
+      operationId: cancelGithubBuild
+      tags: [github]
+      summary: Cancel the active GitHub Actions run
+      parameters:
+        - name: buildId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Cancellation requested
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+  /github/builds/{buildId}/apk:
+    get:
+      operationId: downloadGithubBuildApk
+      tags: [github]
+      summary: Download the APK from the completed GitHub Actions artifact
+      parameters:
+        - name: buildId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: APK binary
+          content:
+            application/vnd.android.package-archive:
+              schema:
+                type: string
+                format: binary
 components:
   schemas:
     HealthStatus:
@@ -33,4 +152,108 @@ components:
           type: string
       required:
         - status
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+      required: [success]
+    GithubUser:
+      type: object
+      properties:
+        id:
+          type: integer
+        login:
+          type: string
+        avatarUrl:
+          type: string
+      required: [id, login, avatarUrl]
+    GithubAuthStatus:
+      type: object
+      properties:
+        connected:
+          type: boolean
+        user:
+          anyOf:
+            - $ref: "#/components/schemas/GithubUser"
+            - type: "null"
+      required: [connected, user]
+    GithubRepository:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        fullName:
+          type: string
+        owner:
+          type: string
+        description:
+          type: ["string", "null"]
+        private:
+          type: boolean
+        defaultBranch:
+          type: string
+        updatedAt:
+          type: string
+      required: [id, name, fullName, owner, description, private, defaultBranch, updatedAt]
+    GithubBuildInput:
+      type: object
+      properties:
+        owner:
+          type: string
+          minLength: 1
+        repo:
+          type: string
+          minLength: 1
+        branch:
+          type: string
+          minLength: 1
+      required: [owner, repo, branch]
+    GithubBuildEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+        message:
+          type: string
+        level:
+          type: string
+          enum: [info, success, warning, error]
+        createdAt:
+          type: string
+      required: [id, message, level, createdAt]
+    GithubBuild:
+      type: object
+      properties:
+        id:
+          type: string
+        owner:
+          type: string
+        repo:
+          type: string
+        branch:
+          type: string
+        status:
+          type: string
+          enum: [queued, in_progress, success, failure, cancelled]
+        attempt:
+          type: integer
+        maxAttempts:
+          type: integer
+        runId:
+          type: ["integer", "null"]
+        artifactId:
+          type: ["integer", "null"]
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/GithubBuildEvent"
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+      required:
+        [id, owner, repo, branch, status, attempt, maxAttempts, runId, artifactId, events, createdAt, updatedAt]
 
